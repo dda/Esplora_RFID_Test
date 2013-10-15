@@ -1,7 +1,7 @@
 // link between the computer and the SoftSerial Shield
-//at 9600 bps 8-N-1
-//Computer is connected to Hardware UART
-//SoftSerial Shield is connected to the Software UART:D2&D3 
+// at 9600 bps 8-N-1
+// Computer is connected to Hardware UART
+// SoftSerial Shield is connected to the Software UART:D2&D3 
  
 #include <SoftwareSerial.h>
 #include <Wire.h>
@@ -9,7 +9,9 @@
 #include <Esplora.h>
 #include <TFT.h>  // Arduino LCD library
 
-/*
+#define currentVersion "0.2.1"
+
+/* Already defined, just a cheat sheet
 #define	ST7735_BLACK   0x0000
 #define	ST7735_BLUE    0x001F
 #define	ST7735_RED     0xF800
@@ -21,15 +23,22 @@
 */
 
 #define RxD 11
-#define TxD  3
+#define TxD  3 // Not important. In this config we're not using it anyway.
 
 SoftwareSerial SoftSerial(RxD, TxD);
 unsigned char buffer[64]; // buffer array for data receive over serial port
 int count=0; // counter for buffer array 
-String authorizedID="27 00 0C 92 57 EE ";
+String authorizedID;
+const char* autohrizedList[] = {
+  "27 00 0C 92 57 EE ",
+  "0A 00 16 C3 FE 21 ",
+  "06 00 8F 52 4F 94 "
+};
+int numKeys=3;
 
 void setup() {
   delay(2000);
+  Serial.begin(57600);
   SoftSerial.begin(9600); // the SoftSerial baud rate   
   delay(1000);
   EsploraTFT.begin();
@@ -45,24 +54,42 @@ void setup() {
 
 int x=0;
 
+void blinkOrange() {
+  Esplora.writeRGB(0xFF, 0x99, 0x00);
+  delay(100);
+  Esplora.writeRGB(0, 0, 0);
+}
+
+void blinkGreen() {
+  Esplora.writeRGB(0, 0xFF, 0);
+  delay(100);
+  Esplora.writeRGB(0, 0, 0);
+  delay(100);
+}
+
+void blinkRed() {
+  Esplora.writeRGB(0xFF, 0, 0);
+  delay(100);
+  Esplora.writeRGB(0, 0, 0);
+  delay(100);
+}
+
 void loop() {
   if (SoftSerial.available()) {
-  // if data is coming from softwareserial port ==> data is comming from SoftSerial shield
-    Esplora.writeRGB(0xFF, 0x99, 0x00);
-    delay(100);
-    Esplora.writeRGB(0, 0, 0);
+    // if data is coming from softwareserial port
+    // blink orange
+    blinkOrange();
+
     while(SoftSerial.available()) {
-      // reading data into char array
+      // read data into char array
       char c=SoftSerial.read();
       buffer[count++]=c;
-      // writing data into array
+      // write data into array
       if(count == 64)break;
     }
     SoftSerial.flush();
-    Esplora.writeRGB(0xFF, 0x99, 0x00);
-    delay(100);
-    Esplora.writeRGB(0, 0, 0);
-    delay(1000);
+    blinkOrange();
+
     if(count>13) {
       String s;
       EsploraTFT.setCursor(0, 33);
@@ -86,34 +113,31 @@ void loop() {
       // call clearBufferArray function to clear the storaged data from the array
       count = 0;
       // set counter of while loop to zero
+      // loop through authorized keys
       EsploraTFT.setCursor(0, 108);
-      if(s==authorizedID) {
-        EsploraTFT.println("Access granted");
-        Esplora.writeRGB(0, 0xFF, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0xFF, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0xFF, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0, 0);
-        SoftSerial.write("dda");
-      } else {
+      boolean isSuccess=false;
+      Serial.println("Key = ["+s+"]");
+      Keyboard.println(s);
+      for(x=0;x<numKeys;x++) {
+        authorizedID=String(autohrizedList[x]);
+        Serial.print("Current Key = ["+authorizedID+"]");
+        if(s==authorizedID) {
+          isSuccess=true;
+          EsploraTFT.println("Access granted");
+          Serial.println("  ... Access granted");
+          blinkGreen();
+          blinkGreen();
+          blinkGreen();
+          x=1000;
+        } else {
+          Serial.println(" ... Nope.");
+        }
+      }
+      if(!isSuccess) {
         EsploraTFT.println("Access denied");
-        Esplora.writeRGB(0xFF, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0xFF, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0xFF, 0, 0);
-        delay(100);
-        Esplora.writeRGB(0, 0, 0);
+        blinkRed();
+        blinkRed();
+        blinkRed();
       }
     }
   }
